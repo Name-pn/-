@@ -1,6 +1,7 @@
 import docx
 import pygments
 import os
+import io
 import time
 
 from docx.shared import Pt, Cm
@@ -10,6 +11,7 @@ from spire.doc import *
 from spire.doc.common import *
 
 USE_ADD_FILE = 1
+NAME_RES = "listings.docx"
 
 def readFolder():
     print("Введите путь к папке с кодом для генерации Doc")
@@ -22,73 +24,70 @@ def readFile(file):
     lexer = CppLexer()
     formatter = RtfFormatter()
     highlighted_code = pygments.highlight(str, lexer, formatter)
-    f2 = open("tmp.rtf", "w")
-    f2.write(highlighted_code)
-    f2.close()
     f.close()
     return highlighted_code
 
-def insertOne(doc, file, i):
+def insertOne(file, i, listCode, listHead):
     code = readFile(file)
     file = file[file.rfind("\\")+1:]
-    p = doc.add_paragraph(f"Листинг №{i}: \"Файл проекта {file}\"")
-    p.runs[0].font.name = "Times New Roman"
-    p.runs[0].font.size = Pt(14)
+    listCode.append(code)
+    listHead.append(f"Листинг №{i}: \"Файл проекта {file}\"")
 
-    if not USE_ADD_FILE:
-        p = doc.add_paragraph(code)
-        run = p.runs[0]
-        p.paragraph_format.left_indent = Cm(1.5)
-        font = run.font
-        font.name = 'Consolas'
-        font.size = Pt(12)
-    else:
-        tmpDoc = Document()
-        tmpDoc.LoadRtf("tmp.rtf")
-        tmpDoc.SaveToFile("tmp2.docx")
-        doc2 = docx.Document("tmp2.docx")
-        doc2.save("test1")
-        p_copyed = doc2.paragraphs
-        p_local = doc.add_paragraph("")
-        p_local.paragraph_format.left_indent = Cm(1.5)
-        for p in p_copyed[1:]:
-            for one_run in p.runs:
-                if (one_run == p.runs[-1]):
-                    local_run = p_local.add_run(one_run.text, one_run.style)
-                else:
-                    local_run = p_local.add_run(one_run.text, one_run.style)
-                local_run.italic = one_run.italic
-                local_run.bold = one_run.bold
-                local_run.font.color.rgb = one_run.font.color.rgb
-                font = local_run.font
+def formDoc(codes, headers):
+    doc = Document()
+    s = doc.AddSection()
+    for i in range(0, len(codes)):
+        doc.LastSection.BreakCode = SectionBreakType.NoBreak
+        p = doc.LastSection.AddParagraph()
+        p.AppendText(headers[i])
+
+        stream = Stream(codes[i].encode())
+        doc.InsertTextFromStream(stream, FileFormat.Rtf)
+
+    doc.SaveToFile(NAME_RES)
+
+def changeFormatDoc():
+    doc = docx.Document(NAME_RES)
+    ps = doc.paragraphs
+
+    # Предположим, что мы хотим удалить первый параграф
+    p = doc.paragraphs[0]  # Получаем первый параграф
+
+    # Удаляем параграф
+    paragraph_element = p._element
+    paragraph_element.getparent().remove(paragraph_element)
+    for p in ps[1:]:
+        for one_run in p.runs:
+            if not p.text.find("Листинг"):
+                p.paragraph_format.space_after = Pt(8)
+                p.paragraph_format.space_before = Pt(8)
+                font = one_run.font
+                font.size = Pt(14)
+            else:
+                p.paragraph_format.left_indent = Cm(1.5)
+                font = one_run.font
                 font.name = 'Consolas'
                 font.size = Pt(12)
-            p_local.add_run("\n")
+    doc.save(NAME_RES)
 
-
-
-def insertCode(doc, name):
+def createDoc(name):
     files = [each for each in os.listdir(name) if each.endswith('.cpp') or each.endswith('.h')]
     i = 1
+    listCode, listHead = [], []
+    if (name[-1] != '\\'):
+        name += '\\'
     for file in files:
-        if (name[-1] != '\\'):
-            insertOne(doc, name + '\\' + file, i)
-        else:
-            insertOne(doc, name + file, i)
+        insertOne(name + file, i, listCode, listHead)
         i += 1
-    try:
-        os.remove('test1')
-        os.remove('tmp.rtf')
-        os.remove('tmp2.docx')
-    except OSError:
-        pass
+    formDoc(listCode, listHead)
 
 
 if __name__ == '__main__':
-    start_time = time.time()
-    doc = docx.Document()
     name = readFolder()
-    insertCode(doc, name)
+
+    start_time = time.time()
+    createDoc(name)
+    changeFormatDoc()
     end_time = time.time()
+
     print(f"Перенос листингов в Docx завершен, он занял {end_time - start_time} секунд")
-    doc.save('listings.docx')
