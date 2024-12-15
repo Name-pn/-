@@ -10,7 +10,7 @@ from pygments.formatters import RtfFormatter
 from spire.doc import *
 from spire.doc.common import *
 
-USE_ADD_FILE = 1
+#Как назвать docx файл, куда будут скопирован код
 NAME_RES = "listings.docx"
 
 def readFolder():
@@ -49,11 +49,8 @@ def formDoc(codes, headers):
 def changeFormatDoc():
     doc = docx.Document(NAME_RES)
     ps = doc.paragraphs
+    p = doc.paragraphs[0]
 
-    # Предположим, что мы хотим удалить первый параграф
-    p = doc.paragraphs[0]  # Получаем первый параграф
-
-    # Удаляем параграф
     paragraph_element = p._element
     paragraph_element.getparent().remove(paragraph_element)
     for p in ps[1:]:
